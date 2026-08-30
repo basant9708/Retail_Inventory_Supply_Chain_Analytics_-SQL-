@@ -172,8 +172,72 @@ ORDER BY total_wastage DESC;
 /*
 📊 Output
 Warehouse-wise total damaged stock.
-
 🎯 Purpose
 Identifies warehouses with the highest stock wastage
 to help management reduce inventory losses.
+*/
+
+
+
+--*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+
+--7. What's the current stock level for each product/warehouse?
+
+WITH latest_inventory AS (
+    SELECT
+        warehouse_id,
+        product_id,
+        stock_date,
+        closing_stock,
+        ROW_NUMBER() OVER (
+            PARTITION BY warehouse_id, product_id
+            ORDER BY stock_date DESC
+        ) AS rn
+    FROM inventory
+)
+
+SELECT
+    w.warehouse_id,
+    w.warehouse_name,
+    p.product_id,
+    p.product_name,
+    p.category_name AS category,
+    li.stock_date AS last_updated,
+    COALESCE(li.closing_stock, 0) AS current_stock_level,
+
+    CASE
+        WHEN COALESCE(li.closing_stock, 0) = 0
+            THEN 'Out of Stock'
+        WHEN COALESCE(li.closing_stock, 0) < 50
+            THEN 'Low Stock'
+        ELSE 'Sufficient'
+    END AS stock_status,
+
+    CASE
+        WHEN COALESCE(li.closing_stock, 0) < 50
+            THEN 'Reorder Required'
+        ELSE 'No Action Needed'
+    END AS reorder_flag
+
+FROM products p
+
+CROSS JOIN warehouses w
+
+LEFT JOIN latest_inventory li
+    ON p.product_id = li.product_id
+    AND w.warehouse_id = li.warehouse_id
+    AND li.rn = 1
+
+ORDER BY
+    w.warehouse_id,
+    p.product_id;
+
+
+
+	/*
+🎯 Purpose
+To identify the latest stock level of each product across warehouses and highlight products that require replenishment.
+
+📊 Output
+Warehouse-wise and product-wise current stock, last updated date, stock status, and reorder requirement.
 */
